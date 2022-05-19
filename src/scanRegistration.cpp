@@ -59,16 +59,20 @@ using std::sin;
 
 std::string LIDAR_TYPE;
 
-const double scanPeriod = 0.1;
-
-const int systemDelay = 0; 
+const double scanPeriod = 0.1;       // Scan period, velodyne frequency 10Hz, period 0.1s
+// Initialize control variables
+const int systemDelay = 0;          // Use from the first frames
 int systemInitCount = 0;
 bool systemInited = false;
-int N_SCANS = 0;
+int N_SCANS = 0;                    // number of lidar lines
+
+// 40000 is the maximum number of points in a frame of point cloud
 float cloudCurvature[400000];
-int cloudSortInd[400000];
-int cloudNeighborPicked[400000];
-int cloudLabel[400000];
+int cloudSortInd[400000];          // The serial number corresponding to the curvature point 
+int cloudNeighborPicked[400000];   // Whether the point is filtered flag: 0-unfiltered, 1-filtered
+int cloudLabel[400000];            // Point classification label: 2- represents a large curvature, 
+                                   // 1- represents a relatively large curvature, -1- represents a small curvature, 
+                                   // 0- a relatively small curvature (where 1 contains 2, 0 contains 1, 0 and 1 constitute a all points of the point cloud)
 
 bool comp (int i,int j) { return (cloudCurvature[i]<cloudCurvature[j]); }
 
@@ -113,6 +117,9 @@ void removeClosedPointCloud(const pcl::PointCloud<PointT> &cloud_in,
     cloud_out.is_dense = true;
 }
 
+// Receive point cloud data, the velodyne radar coordinate system is installed as a right-hand coordinate system with the x-axis forward, 
+// the y-axis left, and the z-axis upward
+
 void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr &laserCloudMsg)
 {
     if (!systemInited)
@@ -126,20 +133,23 @@ void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr &laserCloudMsg)
             return;
     }
 
+    // current point cloud time (to be verified)
     TicToc t_whole;
     TicToc t_prepare;
+  
+     // Record the start and end index of each scan point with curvature
     std::vector<int> scanStartInd(N_SCANS, 0);
     std::vector<int> scanEndInd(N_SCANS, 0);
 
     pcl::PointCloud<pcl::PointXYZ> laserCloudIn;
-    pcl::fromROSMsg(*laserCloudMsg, laserCloudIn);
+    pcl::fromROSMsg(*laserCloudMsg, laserCloudIn);  // The message is converted into pcl data storage
     std::vector<int> indices;
 
-    pcl::removeNaNFromPointCloud(laserCloudIn, laserCloudIn, indices);
+    pcl::removeNaNFromPointCloud(laserCloudIn, laserCloudIn, indices);  // remove empty dots
     removeClosedPointCloud(laserCloudIn, laserCloudIn, MINIMUM_RANGE);
 
 
-    int cloudSize = laserCloudIn.points.size();
+    int cloudSize = laserCloudIn.points.size(); // Number of point cloud points
     float startOri = -atan2(laserCloudIn.points[0].y, laserCloudIn.points[0].x);
     float endOri = -atan2(laserCloudIn.points[cloudSize - 1].y,
                           laserCloudIn.points[cloudSize - 1].x) +
