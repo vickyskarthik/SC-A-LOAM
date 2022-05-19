@@ -61,29 +61,38 @@
 
 int corner_correspondence = 0, plane_correspondence = 0;
 
-constexpr double SCAN_PERIOD = 0.1;
+constexpr double SCAN_PERIOD = 0.1;    // a point cloud cycle
 constexpr double DISTANCE_SQ_THRESHOLD = 25;
 constexpr double NEARBY_SCAN = 2.5;
 
-int skipFrameNum = 5;
-bool systemInited = false;
+int skipFrameNum = 5;                 // Number of skipped frames, control the frequency sent to laserMapping
+bool systemInited = false;            // No initial delay is added
 
+// timestamp informations
 double timeCornerPointsSharp = 0;
 double timeCornerPointsLessSharp = 0;
 double timeSurfPointsFlat = 0;
 double timeSurfPointsLessFlat = 0;
 double timeLaserCloudFullRes = 0;
 
+//kd-tree built by less sharp points of last frame
 pcl::KdTreeFLANN<pcl::PointXYZI>::Ptr kdtreeCornerLast(new pcl::KdTreeFLANN<pcl::PointXYZI>());
+//kd-tree built by less flat points of last frame
 pcl::KdTreeFLANN<pcl::PointXYZI>::Ptr kdtreeSurfLast(new pcl::KdTreeFLANN<pcl::PointXYZI>());
 
+//receive sharp points
 pcl::PointCloud<PointType>::Ptr cornerPointsSharp(new pcl::PointCloud<PointType>());
+//receive less sharp points
 pcl::PointCloud<PointType>::Ptr cornerPointsLessSharp(new pcl::PointCloud<PointType>());
+//receive flat points
 pcl::PointCloud<PointType>::Ptr surfPointsFlat(new pcl::PointCloud<PointType>());
+//receive less flat points
 pcl::PointCloud<PointType>::Ptr surfPointsLessFlat(new pcl::PointCloud<PointType>());
-
+//less sharp points of last frame
 pcl::PointCloud<PointType>::Ptr laserCloudCornerLast(new pcl::PointCloud<PointType>());
+//less flat points of last frame
 pcl::PointCloud<PointType>::Ptr laserCloudSurfLast(new pcl::PointCloud<PointType>());
+//receive all points
 pcl::PointCloud<PointType>::Ptr laserCloudFullRes(new pcl::PointCloud<PointType>());
 
 int laserCloudCornerLastNum = 0;
@@ -108,6 +117,12 @@ std::queue<sensor_msgs::PointCloud2ConstPtr> fullPointsBuf;
 std::mutex mBuf;
 
 // undistort lidar point
+/*****************************************************************************
+    The role of the current frame point cloud TransformToStart and the previous frame point cloud TransformToEnd:
+         Remove distortion and unify the two frames of point cloud data into the same coordinate system for calculation
+*****************************************************************************/
+
+// The point in the current point cloud removes the distortion caused by the uniform motion relative to the first point, and the effect is equivalent to obtaining the point cloud obtained by static scanning at the starting position of the point cloud scanning
 void TransformToStart(PointType const *const pi, PointType *const po)
 {
     //interpolation ratio
@@ -129,7 +144,7 @@ void TransformToStart(PointType const *const pi, PointType *const po)
 }
 
 // transform all lidar points to the start of the next frame
-
+// Remove the distortion caused by uniform motion from the relative end position of the point in the previous frame of point cloud, the effect is equivalent to obtaining the point cloud obtained by static scanning at the end position of the point cloud scan
 void TransformToEnd(PointType const *const pi, PointType *const po)
 {
     // undistort point first
@@ -550,7 +565,7 @@ int main(int argc, char **argv)
                     TransformToEnd(&laserCloudFullRes->points[i], &laserCloudFullRes->points[i]);
                 }
             }
-
+            // The point after distortion correction is saved as the last point and the next point cloud comes in for matching
             pcl::PointCloud<PointType>::Ptr laserCloudTemp = cornerPointsLessSharp;
             cornerPointsLessSharp = laserCloudCornerLast;
             laserCloudCornerLast = laserCloudTemp;
@@ -563,10 +578,10 @@ int main(int argc, char **argv)
             laserCloudSurfLastNum = laserCloudSurfLast->points.size();
 
             // std::cout << "the size of corner last is " << laserCloudCornerLastNum << ", and the size of surf last is " << laserCloudSurfLastNum << '\n';
-
+            // If there are enough points, build a kd-tree, otherwise this frame will be discarded, and the kd-tree of the previous frame of data will be used.
             kdtreeCornerLast->setInputCloud(laserCloudCornerLast);
             kdtreeSurfLast->setInputCloud(laserCloudSurfLast);
-
+            // According to the number of skipped frames, publich edge points, plane points and all points are sent to laserMapping (sent every other frame)
             if (frameCount % skipFrameNum == 0)
             {
                 frameCount = 0;
