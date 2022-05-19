@@ -150,11 +150,14 @@ void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr &laserCloudMsg)
 
 
     int cloudSize = laserCloudIn.points.size(); // Number of point cloud points
+    // The rotation angle of the start point of lidar scan, the atan2 range is [-pi, +pi], the negative sign is taken when calculating the rotation angle because the velodyne rotates clockwise
     float startOri = -atan2(laserCloudIn.points[0].y, laserCloudIn.points[0].x);
+    // The rotation angle of the lidar scan end point, add 2*pi to make the point cloud rotation period 2*pi
     float endOri = -atan2(laserCloudIn.points[cloudSize - 1].y,
                           laserCloudIn.points[cloudSize - 1].x) +
                    2 * M_PI;
-
+    // The difference between the end azimuth and the start azimuth is controlled in the range of (PI, 3*PI), allowing lidar to not be a circular scan
+    // In this range under normal circumstances: pi < endOri - startOri < 3*pi, if it is abnormal, it will be corrected
     if (endOri - startOri > 3 * M_PI)
     {
         endOri -= 2 * M_PI;
@@ -165,16 +168,17 @@ void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr &laserCloudMsg)
     }
     ////printf("end Ori %f\n", endOri);
 
-    bool halfPassed = false;
+    bool halfPassed = false;  // Whether the lidar scan line is rotated more than half
     int count = cloudSize;
     PointType point;
     std::vector<pcl::PointCloud<PointType>> laserCloudScans(N_SCANS);
     for (int i = 0; i < cloudSize; i++)
     {
+    // The coordinate axis is exchanged, and the coordinate system of the velodyne lidar is also converted to the right-hand coordinate system with the z-axis forward and the x-axis left.
         point.x = laserCloudIn.points[i].x;
         point.y = laserCloudIn.points[i].y;
         point.z = laserCloudIn.points[i].z;
-
+   // Calculate the elevation angle of the point (according to the vertical angle calculation formula of the lidar document), arrange the laser line numbers according to the elevation angle, and the interval between each two scans of velodyne is 2 degrees
         float angle = atan(point.z / sqrt(point.x * point.x + point.y * point.y)) * 180 / M_PI;
         int scanID = 0;
 
