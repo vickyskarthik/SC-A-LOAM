@@ -833,10 +833,10 @@ void pubMap(void)
 
 void process_viz_map(void)
 {
-    float vizmapFrequency = 0.1; // 0.1 means run onces every 10s
-    ros::Rate rate(vizmapFrequency);
-    while (ros::ok()) {
-        rate.sleep();
+    float vizmapFrequency = 0.1;      // 0.1 means run onces every 10s
+    ros::Rate rate(vizmapFrequency);  // ROS runs at 0.1Hz
+    while (ros::ok()) {               // Until the node shutdowns 
+        rate.sleep();                 // balances the entire time needed for code execution total = code exec + sleep time
         if(recentIdxUpdated > 1) {
             pubMap();
         }
