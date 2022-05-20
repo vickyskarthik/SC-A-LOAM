@@ -77,8 +77,8 @@ std::queue<sensor_msgs::PointCloud2ConstPtr> fullResBuf;
 std::queue<sensor_msgs::NavSatFix::ConstPtr> gpsBuf;
 std::queue<std::pair<int, int> > scLoopICPBuf;
 
-std::mutex mBuf;
-std::mutex mKF;
+std::mutex mBuf;  // The mutex class is a synchronization primitive that can be used to protect
+std::mutex mKF;   // shared data from being simultaneously accessed by multiple threads
 
 double timeLaserOdometry = 0.0;
 double timeLaser = 0.0;
@@ -807,15 +807,15 @@ void process_isam(void)
 
 void pubMap(void)
 {
-    int SKIP_FRAMES = 2; // sparse map visulalization to save computations 
-    int counter = 0;
+    int SKIP_FRAMES = 2;                  // sparse map visulalization to save computations 
+    int counter = 0;                      
 
-    laserCloudMapPGO->clear();
+    laserCloudMapPGO->clear();           // clear the variable
 
     mKF.lock(); 
     // for (int node_idx=0; node_idx < int(keyframePosesUpdated.size()); node_idx++) {
-    for (int node_idx=0; node_idx < recentIdxUpdated; node_idx++) {
-        if(counter % SKIP_FRAMES == 0) {
+    for (int node_idx=0; node_idx < recentIdxUpdated; node_idx++) {                       // recentIdxUpdated is updated in updatePoses()
+        if(counter % SKIP_FRAMES == 0) {                                                  // skip and process every other frame
             *laserCloudMapPGO += *local2global(keyframeLaserClouds[node_idx], keyframePosesUpdated[node_idx]);
         }
         counter++;
@@ -890,7 +890,7 @@ int main(int argc, char **argv)
     downSizeFilterICP.setLeafSize(filter_size, filter_size, filter_size);
 
     double mapVizFilterSize;
-	nh.param<double>("mapviz_filter_size", mapVizFilterSize, 0.4); // pose assignment every k frames 
+    nh.param<double>("mapviz_filter_size", mapVizFilterSize, 0.4); // pose assignment every k frames 
     downSizeFilterMapPGO.setLeafSize(mapVizFilterSize, mapVizFilterSize, mapVizFilterSize);
 
 	ros::Subscriber subLaserCloudFullRes = nh.subscribe<sensor_msgs::PointCloud2>("/velodyne_cloud_registered_local", 100, laserCloudFullResHandler);
